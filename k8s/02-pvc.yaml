@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: todo-app-data-pvc
+  namespace: todo-app
+  labels:
+    app: todo-app
+spec:
+  # NOTE: Use ReadWriteOnce since SQLite requires single-writer access.
+  # For multi-replica deployments, replace SQLite with a networked DB
+  # (e.g. Postgres) and remove this PVC, or run only 1 replica (see Deployment).
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  # Uncomment and set to your cluster's storage class if needed:
+  # storageClassName: standard
