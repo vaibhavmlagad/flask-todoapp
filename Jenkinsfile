@@ -1,6 +1,6 @@
 pipeline {
 
-    agent none
+    agent any
 
     options {
         timestamps()
@@ -59,7 +59,12 @@ pipeline {
         }
 
         stage('Lint') {
-            agent { docker { image 'python:3.12-slim' } }
+            agent { 
+                docker { 
+                    image 'python:3.12-slim' 
+                    args '-u root'
+                } 
+            }
             steps {
                 unstash 'source'
                 sh '''
@@ -73,7 +78,12 @@ pipeline {
 
         stage('Unit Tests') {
             when { expression { return !params.SKIP_TESTS } }
-            agent { docker { image 'python:3.12-slim' } }
+            agent { 
+                docker { 
+                    image 'python:3.12-slim' 
+                    args '-u root'
+                } 
+            }
             steps {
                 unstash 'source'
                 sh '''
@@ -110,7 +120,12 @@ pipeline {
 
         stage('Scan Image') {
             when { expression { return params.FORCE_IMAGE_SCAN } }
-            agent { docker { image 'aquasec/trivy:latest' } }
+            agent { 
+                docker { 
+                    image 'aquasec/trivy:latest' 
+                    args '-u root'
+                }
+            }
             steps {
                 sh '''
                     mkdir -p trivy-report
@@ -216,7 +231,7 @@ pipeline {
             echo "⚠️ Build #${BUILD_NUMBER} completed with test/lint issues — review reports."
         }
         always {
-            node('built-in-node') {
+            node('') {
                 sh 'docker image prune -f --filter "until=72h" || true'
                 cleanWs()
             }
