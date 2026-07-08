@@ -216,7 +216,7 @@ pipeline {
             echo "⚠️ Build #${BUILD_NUMBER} completed with test/lint issues — review reports."
         }
         always {
-            node() {
+            node('built-in-node') {
                 sh 'docker image prune -f --filter "until=72h" || true'
                 cleanWs()
             }
