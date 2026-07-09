@@ -1,6 +1,6 @@
 pipeline {
 
-    agent none
+    agent any
 
     options {
         timestamps()
@@ -59,7 +59,12 @@ pipeline {
         }
 
         stage('Lint') {
-            agent { docker { image 'python:3.12-slim' } }
+            agent { 
+                docker { 
+                    image 'python:3.12-slim' 
+                    args '-e HOME=/tmp'
+                } 
+            }
             steps {
                 unstash 'source'
                 sh '''
@@ -73,14 +78,19 @@ pipeline {
 
         stage('Unit Tests') {
             when { expression { return !params.SKIP_TESTS } }
-            agent { docker { image 'python:3.12-slim' } }
+            agent { 
+                docker { 
+                    image 'python:3.12-slim' 
+                    args '-e HOME=/tmp'
+                } 
+            }
             steps {
                 unstash 'source'
                 sh '''
                     pip install --no-cache-dir --quiet -r requirements.txt
                     pip install --no-cache-dir --quiet pytest pytest-cov
                     mkdir -p reports
-                    pytest tests/ -v \
+                    python -m pytest tests/ -v \
                         --junitxml=reports/junit.xml \
                         --cov=app --cov-report=xml:reports/coverage.xml --cov-report=term
                 '''
@@ -110,7 +120,12 @@ pipeline {
 
         stage('Scan Image') {
             when { expression { return params.FORCE_IMAGE_SCAN } }
-            agent { docker { image 'aquasec/trivy:latest' } }
+            agent { 
+                docker { 
+                    image 'aquasec/trivy:latest' 
+                    args "--entrypoint='' -u root -v /var/run/docker.sock:/var/run/docker.sock"
+                }
+            }
             steps {
                 sh '''
                     mkdir -p trivy-report
@@ -134,17 +149,14 @@ pipeline {
                 }
             }
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: env.REGISTRY_CRED_ID,
-                    usernameVariable: 'REG_USER',
-                    passwordVariable: 'REG_PASS'
-                )]) {
-                    sh '''
-                        echo "$REG_PASS" | docker login "$REGISTRY" -u "$REG_USER" --password-stdin
-                        docker push "$IMAGE_NAME:$IMAGE_TAG"
-                        docker push "$IMAGE_NAME:latest"
-                        docker logout || true
-                    '''
+                unstash 'source'
+                script {
+                    docker.withRegistry('https://index.docker.io/v1/', env.REGISTRY_CRED_ID) {
+                        sh """
+                            docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                            docker push ${IMAGE_NAME}:latest
+                        """
+                    }
                 }
             }
         }
@@ -216,7 +228,7 @@ pipeline {
             echo "⚠️ Build #${BUILD_NUMBER} completed with test/lint issues — review reports."
         }
         always {
-            node() {
+            node('') {
                 sh 'docker image prune -f --filter "until=72h" || true'
                 cleanWs()
             }
